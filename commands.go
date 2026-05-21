@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type command struct {
 	name string
@@ -19,8 +21,4 @@ func (c commands) run(s *state, cmd command) error {
 		return fmt.Errorf("unknown command: %s", cmd.name)
 	}
 	return handler(s, cmd)
-}
-
-func (c commands) reset(name string, handler func(*state, command) error) {
-	c[name] = handler
 }
