@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danielmiranda22/gator/internal/database"
+	"github.com/danielmiranda22/gator/internal/rss"
 	"github.com/google/uuid"
 )
 
@@ -91,5 +92,15 @@ func handlerListUsers(s *state, cmd command) error {
 		}
 		fmt.Printf("* %v\n", user.Name)
 	}
+	return nil
+}
+
+// add to handlers.go — agg handler
+func handlerAgg(s *state, cmd command) error {
+	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return fmt.Errorf("error fetching feed: %v", err)
+	}
+	fmt.Printf("%+v\n", feed)
 	return nil
 }
