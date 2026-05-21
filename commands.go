@@ -20,3 +20,7 @@ func (c commands) run(s *state, cmd command) error {
 	}
 	return handler(s, cmd)
 }
+
+func (c commands) reset(name string, handler func(*state, command) error) {
+	c[name] = handler
+}
