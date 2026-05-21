@@ -9,3 +9,14 @@ VALUES (
     $6
 )
 RETURNING *;
+
+-- name: GetAllFeeds :many
+SELECT *
+FROM feeds;
+
+
+-- name: GetFeedsByUserID :many
+SELECT *
+FROM feeds
+WHERE user_id = $1;
+
