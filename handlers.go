@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/danielmiranda22/gator/internal/database"
@@ -12,10 +13,10 @@ import (
 )
 
 func handlerLogin(s *state, cmd command) error {
-	if len(cmd.Args) < 1 {
+	if len(cmd.args) < 1 {
 		return fmt.Errorf("usage: login <username>")
 	}
-	username := cmd.Args[0]
+	username := cmd.args[0]
 
 	// login requires the user to exist in the DB
 	_, err := s.db.GetUser(context.Background(), username)
@@ -34,10 +35,10 @@ func handlerLogin(s *state, cmd command) error {
 }
 
 func handlerRegister(s *state, cmd command) error {
-	if len(cmd.Args) < 1 {
+	if len(cmd.args) < 1 {
 		return fmt.Errorf("usage: register <username>")
 	}
-	username := cmd.Args[0]
+	username := cmd.args[0]
 
 	// check if user already exists
 	_, err := s.db.GetUser(context.Background(), username)
@@ -96,11 +97,11 @@ func handlerListUsers(s *state, cmd command) error {
 
 // add to handlers.go — agg handler
 func handlerAgg(s *state, cmd command) error {
-	if len(cmd.Args) < 1 || len(cmd.Args) > 2 {
-		return fmt.Errorf("usage: %v <time_between_reqs>", cmd.Name)
+	if len(cmd.args) < 1 || len(cmd.args) > 2 {
+		return fmt.Errorf("usage: %v <time_between_reqs>", cmd.name)
 	}
 
-	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
+	timeBetweenReqs, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
 		return fmt.Errorf("invalid duration: %v", err)
 	}
@@ -114,15 +115,15 @@ func handlerAgg(s *state, cmd command) error {
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
-	if len(cmd.Args) < 2 {
+	if len(cmd.args) < 2 {
 		return fmt.Errorf("usage: addfeed <name> <url>")
 	}
 	newFeed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Name:      cmd.Args[0],
-		Url:       cmd.Args[1],
+		Name:      cmd.args[0],
+		Url:       cmd.args[1],
 		UserID:    user.ID, // from parameter, not state ✅
 	})
 	if err != nil {
@@ -167,10 +168,10 @@ func handlerListFeeds(s *state, cmd command) error {
 
 // add these three handlers
 func handlerFollow(s *state, cmd command, user database.User) error {
-	if len(cmd.Args) < 1 {
+	if len(cmd.args) < 1 {
 		return fmt.Errorf("usage: follow <feed_url>")
 	}
-	feed, err := s.db.GetFeedByURL(context.Background(), cmd.Args[0])
+	feed, err := s.db.GetFeedByURL(context.Background(), cmd.args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
@@ -206,10 +207,10 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 }
 
 func handlerUnfollow(s *state, cmd command, user database.User) error {
-	if len(cmd.Args) < 1 {
+	if len(cmd.args) < 1 {
 		return fmt.Errorf("usage: unfollow <feed_url>")
 	}
-	feed, err := s.db.GetFeedByURL(context.Background(), cmd.Args[0])
+	feed, err := s.db.GetFeedByURL(context.Background(), cmd.args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
@@ -221,5 +222,36 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 		return fmt.Errorf("error unfollowing feed: %v", err)
 	}
 	fmt.Printf("Unfollowed: %s\n", feed.Name)
+	return nil
+}
+
+// move handlerBrowse here — it's a command handler, not aggregation logic
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	limit := 2
+	if len(cmd.args) == 1 {
+		specifiedLimit, err := strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return fmt.Errorf("invalid limit: %w", err)
+		}
+		limit = specifiedLimit
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't get posts for user: %w", err)
+	}
+
+	fmt.Printf("Found %d posts for user %s:\n", len(posts), user.Name)
+	for _, post := range posts {
+		fmt.Printf("%s from %s\n", post.PublishedAt.Time.Format("Mon Jan 2"), post.FeedName)
+		fmt.Printf("--- %s ---\n", post.Title)
+		fmt.Printf("    %v\n", post.Description.String)
+		fmt.Printf("Link: %s\n", post.Url)
+		fmt.Println("=====================================")
+	}
 	return nil
 }

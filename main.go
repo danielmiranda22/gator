@@ -29,7 +29,7 @@ func main() {
 	}
 	defer db.Close()
 
-	s := &state{
+	programState := &state{
 		cfg: &cfg,
 		db:  database.New(db),
 	}
@@ -45,6 +45,7 @@ func main() {
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	args := os.Args
 	if len(args) < 2 {
@@ -52,10 +53,10 @@ func main() {
 	}
 
 	cmd := command{
-		Name: args[1],
-		Args: args[2:],
+		name: args[1],
+		args: args[2:],
 	}
-	if err := cmds.run(s, cmd); err != nil {
+	if err := cmds.run(programState, cmd); err != nil {
 		log.Fatal(err)
 	}
 }
