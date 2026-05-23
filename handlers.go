@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"github.com/danielmiranda22/gator/internal/database"
-	"github.com/danielmiranda22/gator/internal/rss"
 	"github.com/google/uuid"
 )
 
 func handlerLogin(s *state, cmd command) error {
-	if len(cmd.args) < 1 {
+	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: login <username>")
 	}
-	username := cmd.args[0]
+	username := cmd.Args[0]
 
 	// login requires the user to exist in the DB
 	_, err := s.db.GetUser(context.Background(), username)
@@ -35,10 +34,10 @@ func handlerLogin(s *state, cmd command) error {
 }
 
 func handlerRegister(s *state, cmd command) error {
-	if len(cmd.args) < 1 {
+	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: register <username>")
 	}
-	username := cmd.args[0]
+	username := cmd.Args[0]
 
 	// check if user already exists
 	_, err := s.db.GetUser(context.Background(), username)
@@ -97,24 +96,33 @@ func handlerListUsers(s *state, cmd command) error {
 
 // add to handlers.go — agg handler
 func handlerAgg(s *state, cmd command) error {
-	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return fmt.Errorf("error fetching feed: %v", err)
+	if len(cmd.Args) < 1 || len(cmd.Args) > 2 {
+		return fmt.Errorf("usage: %v <time_between_reqs>", cmd.Name)
 	}
-	fmt.Printf("%+v\n", feed)
-	return nil
+
+	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
+	if err != nil {
+		return fmt.Errorf("invalid duration: %v", err)
+	}
+
+	fmt.Printf("Collecting feeds every %v\n", timeBetweenReqs)
+
+	ticker := time.NewTicker(timeBetweenReqs)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
-	if len(cmd.args) < 2 {
+	if len(cmd.Args) < 2 {
 		return fmt.Errorf("usage: addfeed <name> <url>")
 	}
 	newFeed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Name:      cmd.args[0],
-		Url:       cmd.args[1],
+		Name:      cmd.Args[0],
+		Url:       cmd.Args[1],
 		UserID:    user.ID, // from parameter, not state ✅
 	})
 	if err != nil {
@@ -159,10 +167,10 @@ func handlerListFeeds(s *state, cmd command) error {
 
 // add these three handlers
 func handlerFollow(s *state, cmd command, user database.User) error {
-	if len(cmd.args) < 1 {
+	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: follow <feed_url>")
 	}
-	feed, err := s.db.GetFeedByURL(context.Background(), cmd.args[0])
+	feed, err := s.db.GetFeedByURL(context.Background(), cmd.Args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
@@ -198,15 +206,15 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 }
 
 func handlerUnfollow(s *state, cmd command, user database.User) error {
-	if len(cmd.args) < 1 {
+	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: unfollow <feed_url>")
 	}
-	feed, err := s.db.GetFeedByURL(context.Background(), cmd.args[0])
+	feed, err := s.db.GetFeedByURL(context.Background(), cmd.Args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
 	err = s.db.DeleteFeedFollow(context.Background(), database.DeleteFeedFollowParams{
-		UserID: user.ID, // from parameter ✅
+		UserID: user.ID,
 		FeedID: feed.ID,
 	})
 	if err != nil {

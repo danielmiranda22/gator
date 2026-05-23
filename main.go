@@ -51,7 +51,10 @@ func main() {
 		log.Fatal("usage: gator <command> [args...]")
 	}
 
-	cmd := command{name: args[1], args: args[2:]}
+	cmd := command{
+		Name: args[1],
+		Args: args[2:],
+	}
 	if err := cmds.run(s, cmd); err != nil {
 		log.Fatal(err)
 	}
