@@ -60,7 +60,7 @@ const getPostsForUser = `-- name: GetPostsForUser :many
 SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
 JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
 JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1
+WHERE feed_follows.user_id = $1 
 ORDER BY posts.published_at DESC
 LIMIT $2
 `
@@ -91,6 +91,129 @@ func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams
 	var items []GetPostsForUserRow
 	for rows.Next() {
 		var i GetPostsForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserFilterByTitle = `-- name: GetPostsForUserFilterByTitle :many
+
+
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
+JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+JOIN feeds ON posts.feed_id = feeds.id
+WHERE feed_follows.user_id = $1 
+  AND (posts.title = $2 OR posts.description = $2)
+ORDER BY posts.published_at DESC
+LIMIT $3
+`
+
+type GetPostsForUserFilterByTitleParams struct {
+	UserID uuid.UUID
+	Title  string
+	Limit  int32
+}
+
+type GetPostsForUserFilterByTitleRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserFilterByTitle(ctx context.Context, arg GetPostsForUserFilterByTitleParams) ([]GetPostsForUserFilterByTitleRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserFilterByTitle, arg.UserID, arg.Title, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserFilterByTitleRow
+	for rows.Next() {
+		var i GetPostsForUserFilterByTitleRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserOldest = `-- name: GetPostsForUserOldest :many
+
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
+JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+JOIN feeds ON posts.feed_id = feeds.id
+WHERE feed_follows.user_id = $1
+ORDER BY posts.published_at ASC
+LIMIT $2
+`
+
+type GetPostsForUserOldestParams struct {
+	UserID uuid.UUID
+	Limit  int32
+}
+
+type GetPostsForUserOldestRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserOldest(ctx context.Context, arg GetPostsForUserOldestParams) ([]GetPostsForUserOldestRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserOldest, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserOldestRow
+	for rows.Next() {
+		var i GetPostsForUserOldestRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,

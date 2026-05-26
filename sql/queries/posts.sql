@@ -8,7 +8,27 @@ RETURNING *;
 SELECT posts.*, feeds.name AS feed_name FROM posts
 JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
 JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1
+WHERE feed_follows.user_id = $1 
 ORDER BY posts.published_at DESC
 LIMIT $2;
+--
+
+-- name: GetPostsForUserOldest :many
+SELECT posts.*, feeds.name AS feed_name FROM posts
+JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+JOIN feeds ON posts.feed_id = feeds.id
+WHERE feed_follows.user_id = $1
+ORDER BY posts.published_at ASC
+LIMIT $2;
+--
+
+
+-- name: GetPostsForUserFilterByTitle :many
+SELECT posts.*, feeds.name AS feed_name FROM posts
+JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+JOIN feeds ON posts.feed_id = feeds.id
+WHERE feed_follows.user_id = $1 
+  AND (posts.title = $2 OR posts.description = $2)
+ORDER BY posts.published_at DESC
+LIMIT $3;
 --
