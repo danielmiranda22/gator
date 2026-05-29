@@ -323,34 +323,46 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 		return nil
 	}
 }
+
+var (
+	colorReset   = "\033[0m"
+	colorBold    = "\033[1m"
+	colorCyan    = "\033[36m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorMagenta = "\033[35m"
+	colorGray    = "\033[90m"
+)
+
 func printPosts[T any](posts []T, userName string, page int) {
 	if len(posts) == 0 {
 		fmt.Printf("No posts found for user %s (page %d)\n", userName, page)
 		return
 	}
 
-	fmt.Printf("Found %d posts for user %s (page %d):\n", len(posts), userName, page)
+	fmt.Printf("\n%s%sPosts for %s%s\n", colorBold, colorCyan, userName, colorReset)
 	for _, post := range posts {
 		// Use type switch if your sqlc-generated rows have different struct types, or
 		// just copy your previous print loop for each branch if needed.
 		switch p := any(post).(type) {
 		case database.GetPostsForUserWithPaginationRow:
-			fmt.Printf("%s from %s\n", p.PublishedAt.Time.Format("Mon Jan 2"), p.FeedName)
+			fmt.Printf("%s📅 %s%s  %s%s\n", colorBlue, p.PublishedAt.Time.Format("02 Jan 2006"), colorGray, p.FeedName, colorReset)
 			fmt.Printf("--- %s ---\n", p.Title)
 			fmt.Printf("    %v\n", p.Description.String)
-			fmt.Printf("Link: %s\n", p.Url)
+			fmt.Printf("    %s🔗 %s%s\n", colorGreen, p.Url, colorReset)
 			fmt.Println("=====================================")
 		case database.GetPostsForUserOldestWithPaginationRow:
-			fmt.Printf("%s from %s\n", p.PublishedAt.Time.Format("Mon Jan 2"), p.FeedName)
+			fmt.Printf("%s📅 %s%s  %s%s\n", colorBlue, p.PublishedAt.Time.Format("02 Jan 2006"), colorGray, p.FeedName, colorReset)
 			fmt.Printf("--- %s ---\n", p.Title)
 			fmt.Printf("    %v\n", p.Description.String)
-			fmt.Printf("Link: %s\n", p.Url)
+			fmt.Printf("    %s🔗 %s%s\n", colorGreen, p.Url, colorReset)
 			fmt.Println("=====================================")
 		case database.GetPostsForUserFilterByTitleRow:
-			fmt.Printf("%s from %s\n", p.PublishedAt.Time.Format("Mon Jan 2"), p.FeedName)
+			fmt.Printf("%s📅 %s%s  %s%s\n", colorBlue, p.PublishedAt.Time.Format("02 Jan 2006"), colorGray, p.FeedName, colorReset)
 			fmt.Printf("--- %s ---\n", p.Title)
 			fmt.Printf("    %v\n", p.Description.String)
-			fmt.Printf("Link: %s\n", p.Url)
+			fmt.Printf("    %s🔗 %s%s\n", colorGreen, p.Url, colorReset)
 			fmt.Println("=====================================")
 		}
 	}
