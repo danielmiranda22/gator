@@ -237,3 +237,127 @@ func (q *Queries) GetPostsForUserOldest(ctx context.Context, arg GetPostsForUser
 	}
 	return items, nil
 }
+
+const getPostsForUserOldestWithPagination = `-- name: GetPostsForUserOldestWithPagination :many
+
+
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
+JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+JOIN feeds ON posts.feed_id = feeds.id
+WHERE feed_follows.user_id = $1
+ORDER BY posts.published_at ASC
+LIMIT $2 OFFSET $3
+`
+
+type GetPostsForUserOldestWithPaginationParams struct {
+	UserID uuid.UUID
+	Limit  int32
+	Offset int32
+}
+
+type GetPostsForUserOldestWithPaginationRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserOldestWithPagination(ctx context.Context, arg GetPostsForUserOldestWithPaginationParams) ([]GetPostsForUserOldestWithPaginationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserOldestWithPagination, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserOldestWithPaginationRow
+	for rows.Next() {
+		var i GetPostsForUserOldestWithPaginationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserWithPagination = `-- name: GetPostsForUserWithPagination :many
+
+
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
+JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+JOIN feeds ON posts.feed_id = feeds.id
+WHERE feed_follows.user_id = $1
+ORDER BY posts.published_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetPostsForUserWithPaginationParams struct {
+	UserID uuid.UUID
+	Limit  int32
+	Offset int32
+}
+
+type GetPostsForUserWithPaginationRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserWithPagination(ctx context.Context, arg GetPostsForUserWithPaginationParams) ([]GetPostsForUserWithPaginationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserWithPagination, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserWithPaginationRow
+	for rows.Next() {
+		var i GetPostsForUserWithPaginationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

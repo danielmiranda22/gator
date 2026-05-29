@@ -226,40 +226,39 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 }
 
 func handlerBrowse(s *state, cmd command, user database.User) error {
-	// Default values
+	// --- Defaults ---
 	limit := 2
 	sort := "newest"
 	titleFilter := ""
+	page := 1
 
 	// instructions for flags:
 	// --limit <number>: limits the number of posts returned (default: 2)
 	// --sort <newest|oldest>: sorts posts by published date (default: newest)
 	// --title <title>: filters posts by title (exact match)
+	// --page <number>: for pagination, returns the next set of results based on the limit (default: 1)
 	if len(cmd.args) == 0 {
-		fmt.Println("Usage: browse [--limit <number>] [--sort <newest|oldest>] [--title <title>]")
-		fmt.Println("Default limit is 2, default sort is newest")
-		fmt.Println("Example: browse --limit 5 --sort oldest")
+		fmt.Println("Usage: browse [--limit <number>] [--sort <newest|oldest>] [--title <title>] [--page <number>]")
+		fmt.Println("Default limit is 2, default sort is newest, default page is 1")
+		fmt.Println("Example: browse --limit 5 --sort oldest --page 2")
 		return nil
 	}
 
-	// Simple flag parser:
+	// --- Parse CLI flags ---
 	for i := 0; i < len(cmd.args); i++ {
 		arg := cmd.args[i]
 		switch arg {
 		case "--limit":
-			fmt.Printf("Size: %d\n", len(cmd.args))
 			if i+1 < len(cmd.args) {
-				val, err := strconv.Atoi(cmd.args[i+1])
-				if err == nil {
+				if val, err := strconv.Atoi(cmd.args[i+1]); err == nil {
 					limit = val
 				}
 				i++
 			}
 		case "--sort":
 			if i+1 < len(cmd.args) {
-				val := cmd.args[i+1]
-				if val == "oldest" || val == "newest" {
-					sort = val
+				if cmd.args[i+1] == "oldest" || cmd.args[i+1] == "newest" {
+					sort = cmd.args[i+1]
 				}
 				i++
 			}
@@ -268,74 +267,91 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 				titleFilter = cmd.args[i+1]
 				i++
 			}
+		case "--page":
+			if i+1 < len(cmd.args) {
+				if val, err := strconv.Atoi(cmd.args[i+1]); err == nil && val >= 1 {
+					page = val
+				}
+				i++
+			}
 		}
 	}
 
 	ctx := context.Background()
-	var err error
+	offset := (page - 1) * limit
 
-	// Declare postsFiltered to fix undefined variable error
-	var postsFiltered []database.GetPostsForUserFilterByTitleRow
-	var postsOldest []database.GetPostsForUserOldestRow
-	var posts []database.GetPostsForUserRow
-
+	// --- Branching logic ---
 	switch {
+	// --- Filter by title/description, paginated ---
 	case titleFilter != "":
-		postsFiltered, err = s.db.GetPostsForUserFilterByTitle(ctx, database.GetPostsForUserFilterByTitleParams{
+		posts, err := s.db.GetPostsForUserFilterByTitle(ctx, database.GetPostsForUserFilterByTitleParams{
 			UserID: user.ID,
 			Title:  titleFilter,
 			Limit:  int32(limit),
+			// If you want pagination here, you'll need to add OFFSET to this query as well!
 		})
 		if err != nil {
 			return fmt.Errorf("couldn't get posts for user: %w", err)
 		}
+		printPosts(posts, user.Name, page)
+		return nil
 
-		fmt.Printf("Found %d posts for user %s:\n", len(postsFiltered), user.Name)
-		for _, post := range postsFiltered {
-			fmt.Printf("%s from %s\n", post.PublishedAt.Time.Format("Mon Jan 2"), post.FeedName)
-			fmt.Printf("--- %s ---\n", post.Title)
-			fmt.Printf("    %v\n", post.Description.String)
-			fmt.Printf("Link: %s\n", post.Url)
-			fmt.Println("=====================================")
-		}
-
+	// --- Sort oldest, paginated ---
 	case sort == "oldest":
-		postsOldest, err = s.db.GetPostsForUserOldest(ctx, database.GetPostsForUserOldestParams{
+		posts, err := s.db.GetPostsForUserOldestWithPagination(ctx, database.GetPostsForUserOldestWithPaginationParams{
 			UserID: user.ID,
 			Limit:  int32(limit),
+			Offset: int32(offset),
 		})
 		if err != nil {
 			return fmt.Errorf("couldn't get posts for user: %w", err)
 		}
+		printPosts(posts, user.Name, page)
+		return nil
 
-		fmt.Printf("Found %d posts for user %s:\n", len(postsOldest), user.Name)
-		for _, post := range postsOldest {
-			fmt.Printf("%s from %s\n", post.PublishedAt.Time.Format("Mon Jan 2"), post.FeedName)
-			fmt.Printf("--- %s ---\n", post.Title)
-			fmt.Printf("    %v\n", post.Description.String)
-			fmt.Printf("Link: %s\n", post.Url)
-			fmt.Println("=====================================")
-		}
+	// --- Default (sort newest, paginated) ---
 	default:
-		// sort == "newest" or not specified
-		posts, err = s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		posts, err := s.db.GetPostsForUserWithPagination(ctx, database.GetPostsForUserWithPaginationParams{
 			UserID: user.ID,
 			Limit:  int32(limit),
+			Offset: int32(offset),
 		})
 		if err != nil {
 			return fmt.Errorf("couldn't get posts for user: %w", err)
 		}
-
-		fmt.Printf("Found %d posts for user %s:\n", len(posts), user.Name)
-		for _, post := range posts {
-			fmt.Printf("%s from %s\n", post.PublishedAt.Time.Format("Mon Jan 2"), post.FeedName)
-			fmt.Printf("--- %s ---\n", post.Title)
-			fmt.Printf("    %v\n", post.Description.String)
-			fmt.Printf("Link: %s\n", post.Url)
-			fmt.Println("=====================================")
-		}
-
+		printPosts(posts, user.Name, page)
+		return nil
+	}
+}
+func printPosts[T any](posts []T, userName string, page int) {
+	if len(posts) == 0 {
+		fmt.Printf("No posts found for user %s (page %d)\n", userName, page)
+		return
 	}
 
-	return nil
+	fmt.Printf("Found %d posts for user %s (page %d):\n", len(posts), userName, page)
+	for _, post := range posts {
+		// Use type switch if your sqlc-generated rows have different struct types, or
+		// just copy your previous print loop for each branch if needed.
+		switch p := any(post).(type) {
+		case database.GetPostsForUserWithPaginationRow:
+			fmt.Printf("%s from %s\n", p.PublishedAt.Time.Format("Mon Jan 2"), p.FeedName)
+			fmt.Printf("--- %s ---\n", p.Title)
+			fmt.Printf("    %v\n", p.Description.String)
+			fmt.Printf("Link: %s\n", p.Url)
+			fmt.Println("=====================================")
+		case database.GetPostsForUserOldestWithPaginationRow:
+			fmt.Printf("%s from %s\n", p.PublishedAt.Time.Format("Mon Jan 2"), p.FeedName)
+			fmt.Printf("--- %s ---\n", p.Title)
+			fmt.Printf("    %v\n", p.Description.String)
+			fmt.Printf("Link: %s\n", p.Url)
+			fmt.Println("=====================================")
+		case database.GetPostsForUserFilterByTitleRow:
+			fmt.Printf("%s from %s\n", p.PublishedAt.Time.Format("Mon Jan 2"), p.FeedName)
+			fmt.Printf("--- %s ---\n", p.Title)
+			fmt.Printf("    %v\n", p.Description.String)
+			fmt.Printf("Link: %s\n", p.Url)
+			fmt.Println("=====================================")
+		}
+	}
 }
