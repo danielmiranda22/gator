@@ -2,6 +2,8 @@
 
 A CLI tool for aggregating RSS feeds and reading posts from the terminal.
 
+> Initially built as part of [Boot.dev's](https://boot.dev). Now being actively extended with new features, improvements, and explorations into Go CLI development and backend systems.
+
 ## Requirements
 
 - [Go 1.22+](https://go.dev/dl/)
