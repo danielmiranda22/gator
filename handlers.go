@@ -13,6 +13,18 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	colorReset   = "\033[0m"
+	colorBold    = "\033[1m"
+	colorCyan    = "\033[36m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorMagenta = "\033[35m"
+	colorGray    = "\033[90m"
+	colorRed     = "\033[31m"
+)
+
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("usage: login <username>")
@@ -22,7 +34,7 @@ func handlerLogin(s *state, cmd command) error {
 	// login requires the user to exist in the DB
 	_, err := s.db.GetUser(context.Background(), username)
 	if errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("user %s does not exist", username)
+		return fmt.Errorf("user **%s** %sdoes not exist%s", username, colorRed, colorReset)
 	}
 	if err != nil {
 		return fmt.Errorf("error looking up user: %v", err)
@@ -31,7 +43,7 @@ func handlerLogin(s *state, cmd command) error {
 	if err := s.cfg.SetUser(username); err != nil {
 		return err
 	}
-	fmt.Printf("Logged in as %s\n", username)
+	fmt.Printf("%s%sLogged in as %s%s\n", colorGreen, colorBold, username, colorReset)
 	return nil
 }
 
@@ -45,7 +57,7 @@ func handlerRegister(s *state, cmd command) error {
 	_, err := s.db.GetUser(context.Background(), username)
 	if err == nil {
 		// no error = user found = already exists
-		return fmt.Errorf("user %s already exists", username)
+		return fmt.Errorf("user **%s** %salready exists%s", username, colorRed, colorReset)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		// real DB error
@@ -353,17 +365,6 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 		return nil
 	}
 }
-
-var (
-	colorReset   = "\033[0m"
-	colorBold    = "\033[1m"
-	colorCyan    = "\033[36m"
-	colorGreen   = "\033[32m"
-	colorYellow  = "\033[33m"
-	colorBlue    = "\033[34m"
-	colorMagenta = "\033[35m"
-	colorGray    = "\033[90m"
-)
 
 func printPosts[T any](posts []T, userName string, page int, limit int, sort string, filter string) {
 	if len(posts) == 0 {
