@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -98,7 +99,7 @@ func handlerListUsers(s *state, cmd command) error {
 // add to handlers.go — agg handler
 func handlerAgg(s *state, cmd command) error {
 	if len(cmd.args) < 1 || len(cmd.args) > 2 {
-		return fmt.Errorf("usage: %v <time_between_reqs>", cmd.name)
+		return fmt.Errorf("usage: %v <time_between_reqs> [worker_count]", cmd.name)
 	}
 
 	timeBetweenReqs, err := time.ParseDuration(cmd.args[0])
@@ -106,11 +107,33 @@ func handlerAgg(s *state, cmd command) error {
 		return fmt.Errorf("invalid duration: %v", err)
 	}
 
-	fmt.Printf("Collecting feeds every %v\n", timeBetweenReqs)
+	workerCount := 1
+	if len(cmd.args) == 2 {
+		parsedWorkers, err := strconv.Atoi(cmd.args[1])
+		if err != nil || parsedWorkers < 1 {
+			return fmt.Errorf("invalid worker count: %s", cmd.args[1])
+		}
+		workerCount = parsedWorkers
+	}
+
+	fmt.Printf("Collecting feeds every %v with %d worker(s)\n", timeBetweenReqs, workerCount)
 
 	ticker := time.NewTicker(timeBetweenReqs)
+	defer ticker.Stop()
+
 	for ; ; <-ticker.C {
-		scrapeFeeds(s)
+		feeds, err := s.db.GetNextFeedsToFetch(context.Background(), int32(workerCount))
+		if err != nil {
+			log.Printf("error getting next feeds to fetch: %v", err)
+			continue
+		}
+
+		if len(feeds) == 0 {
+			log.Println("no feeds to fetch")
+			continue
+		}
+
+		scrapeFeedsConcurrently(s, feeds, workerCount)
 	}
 }
 
