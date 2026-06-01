@@ -249,77 +249,85 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 }
 
 func handlerBrowse(s *state, cmd command, user database.User) error {
-	// --- Defaults ---
 	limit := 2
 	sort := "newest"
 	titleFilter := ""
 	page := 1
 
-	// instructions for flags:
-	// --limit <number>: limits the number of posts returned (default: 2)
-	// --sort <newest|oldest>: sorts posts by published date (default: newest)
-	// --title <title>: filters posts by title (exact match)
-	// --page <number>: for pagination, returns the next set of results based on the limit (default: 1)
-	if len(cmd.args) == 0 {
-		fmt.Println("Usage: browse [--limit <number>] [--sort <newest|oldest>] [--title <title>] [--page <number>]")
-		fmt.Println("Default limit is 2, default sort is newest, default page is 1")
-		fmt.Println("Example: browse --limit 5 --sort oldest --page 2")
+	if len(cmd.args) == 1 && cmd.args[0] == "--help" {
+		fmt.Printf("%sUsage:%s %s [--limit <number>] [--sort <newest|oldest>] [--filter <text>] [--page <number>]\n",
+			colorCyan, colorReset, cmd.name)
+		fmt.Printf("%sDefaults:%s limit=2, sort=newest, page=1\n", colorGray, colorReset)
+		fmt.Printf("%sExample:%s %s --limit 5 --sort oldest --page 2\n",
+			colorGray, colorReset, cmd.name)
 		return nil
 	}
 
-	// --- Parse CLI flags ---
 	for i := 0; i < len(cmd.args); i++ {
 		arg := cmd.args[i]
+
 		switch arg {
 		case "--limit":
-			if i+1 < len(cmd.args) {
-				if val, err := strconv.Atoi(cmd.args[i+1]); err == nil {
-					limit = val
-				}
-				i++
+			if i+1 >= len(cmd.args) {
+				return fmt.Errorf("missing value for --limit")
 			}
+			val, err := strconv.Atoi(cmd.args[i+1])
+			if err != nil || val < 1 {
+				return fmt.Errorf("--limit must be a positive integer")
+			}
+			limit = val
+			i++
+
 		case "--sort":
-			if i+1 < len(cmd.args) {
-				if cmd.args[i+1] == "oldest" || cmd.args[i+1] == "newest" {
-					sort = cmd.args[i+1]
-				}
-				i++
+			if i+1 >= len(cmd.args) {
+				return fmt.Errorf("missing value for --sort")
 			}
+			val := cmd.args[i+1]
+			if val != "newest" && val != "oldest" {
+				return fmt.Errorf("--sort must be 'newest' or 'oldest'")
+			}
+			sort = val
+			i++
+
 		case "--filter":
-			if i+1 < len(cmd.args) {
-				titleFilter = cmd.args[i+1]
-				i++
+			if i+1 >= len(cmd.args) {
+				return fmt.Errorf("missing value for --filter")
 			}
+			titleFilter = cmd.args[i+1]
+			i++
+
 		case "--page":
-			if i+1 < len(cmd.args) {
-				if val, err := strconv.Atoi(cmd.args[i+1]); err == nil && val >= 1 {
-					page = val
-				}
-				i++
+			if i+1 >= len(cmd.args) {
+				return fmt.Errorf("missing value for --page")
 			}
+			val, err := strconv.Atoi(cmd.args[i+1])
+			if err != nil || val < 1 {
+				return fmt.Errorf("--page must be a positive integer")
+			}
+			page = val
+			i++
+
+		default:
+			return fmt.Errorf("unknown option: %s", arg)
 		}
 	}
 
 	ctx := context.Background()
 	offset := (page - 1) * limit
 
-	// --- Branching logic ---
 	switch {
-	// --- Filter by title/description, paginated ---
 	case titleFilter != "":
 		posts, err := s.db.GetPostsForUserFilterByTitle(ctx, database.GetPostsForUserFilterByTitleParams{
 			UserID: user.ID,
 			Title:  titleFilter,
 			Limit:  int32(limit),
-			// If you want pagination here, you'll need to add OFFSET to this query as well!
 		})
 		if err != nil {
-			return fmt.Errorf("couldn't get posts for user: %w", err)
+			return fmt.Errorf("couldn't get filtered posts for user: %w", err)
 		}
-		printPosts(posts, user.Name, page)
+		printPosts(posts, user.Name, page, limit, sort, titleFilter)
 		return nil
 
-	// --- Sort oldest, paginated ---
 	case sort == "oldest":
 		posts, err := s.db.GetPostsForUserOldestWithPagination(ctx, database.GetPostsForUserOldestWithPaginationParams{
 			UserID: user.ID,
@@ -327,12 +335,11 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 			Offset: int32(offset),
 		})
 		if err != nil {
-			return fmt.Errorf("couldn't get posts for user: %w", err)
+			return fmt.Errorf("couldn't get oldest posts for user: %w", err)
 		}
-		printPosts(posts, user.Name, page)
+		printPosts(posts, user.Name, page, limit, sort, titleFilter)
 		return nil
 
-	// --- Default (sort newest, paginated) ---
 	default:
 		posts, err := s.db.GetPostsForUserWithPagination(ctx, database.GetPostsForUserWithPaginationParams{
 			UserID: user.ID,
@@ -342,7 +349,7 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 		if err != nil {
 			return fmt.Errorf("couldn't get posts for user: %w", err)
 		}
-		printPosts(posts, user.Name, page)
+		printPosts(posts, user.Name, page, limit, sort, titleFilter)
 		return nil
 	}
 }
@@ -358,35 +365,58 @@ var (
 	colorGray    = "\033[90m"
 )
 
-func printPosts[T any](posts []T, userName string, page int) {
+func printPosts[T any](posts []T, userName string, page int, limit int, sort string, filter string) {
 	if len(posts) == 0 {
-		fmt.Printf("No posts found for user %s (page %d)\n", userName, page)
+		fmt.Printf("%sNo posts found for %s on page %d.%s\n", colorYellow, userName, page, colorReset)
+		if filter != "" {
+			fmt.Printf("%sTry a different filter or a lower page number.%s\n", colorGray, colorReset)
+		}
 		return
 	}
 
-	fmt.Printf("\n%s%sPosts for %s%s\n", colorBold, colorCyan, userName, colorReset)
+	fmt.Printf("\n%s%sPosts for %s%s", colorBold, colorCyan, userName, colorReset)
+	fmt.Printf("%s — page %d — sort: %s — limit: %d%s\n", colorGray, page, sort, limit, colorReset)
+	if filter != "" {
+		fmt.Printf("%sFilter:%s %s\n", colorYellow, colorReset, filter)
+	}
+	fmt.Printf("%s════════════════════════════════════════════════════════════%s\n", colorGray, colorReset)
+
 	for _, post := range posts {
 		// Use type switch if your sqlc-generated rows have different struct types, or
 		// just copy your previous print loop for each branch if needed.
 		switch p := any(post).(type) {
 		case database.GetPostsForUserWithPaginationRow:
-			fmt.Printf("%s📅 %s%s  %s%s\n", colorBlue, p.PublishedAt.Time.Format("02 Jan 2006"), colorGray, p.FeedName, colorReset)
-			fmt.Printf("--- %s ---\n", p.Title)
-			fmt.Printf("    %v\n", p.Description.String)
-			fmt.Printf("    %s🔗 %s%s\n", colorGreen, p.Url, colorReset)
-			fmt.Println("=====================================")
+			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		case database.GetPostsForUserOldestWithPaginationRow:
-			fmt.Printf("%s📅 %s%s  %s%s\n", colorBlue, p.PublishedAt.Time.Format("02 Jan 2006"), colorGray, p.FeedName, colorReset)
-			fmt.Printf("--- %s ---\n", p.Title)
-			fmt.Printf("    %v\n", p.Description.String)
-			fmt.Printf("    %s🔗 %s%s\n", colorGreen, p.Url, colorReset)
-			fmt.Println("=====================================")
+			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		case database.GetPostsForUserFilterByTitleRow:
-			fmt.Printf("%s📅 %s%s  %s%s\n", colorBlue, p.PublishedAt.Time.Format("02 Jan 2006"), colorGray, p.FeedName, colorReset)
-			fmt.Printf("--- %s ---\n", p.Title)
-			fmt.Printf("    %v\n", p.Description.String)
-			fmt.Printf("    %s🔗 %s%s\n", colorGreen, p.Url, colorReset)
-			fmt.Println("=====================================")
+			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		}
 	}
+}
+
+func truncate(text string, max int) string {
+	if len(text) <= max {
+		return text
+	}
+	return text[:max-3] + "..."
+}
+
+func renderPost(title, feedName, url, description string, publishedAt time.Time) {
+	fmt.Printf("%s📅 %s%s  %s%s\n",
+		colorBlue,
+		publishedAt.Format("02 Jan 2006"),
+		colorGray,
+		feedName,
+		colorReset,
+	)
+
+	fmt.Printf("%s%s%s\n", colorBold, title, colorReset)
+
+	if description != "" {
+		fmt.Printf("    %s%s%s\n", colorGray, truncate(description, 140), colorReset)
+	}
+
+	fmt.Printf("    %s🔗 %s%s\n", colorGreen, url, colorReset)
+	fmt.Printf("%s────────────────────────────────────────%s\n", colorGray, colorReset)
 }
