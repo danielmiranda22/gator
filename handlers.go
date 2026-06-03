@@ -366,6 +366,27 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 	}
 }
 
+func handlerSearch(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("usage: search <search_term>")
+	}
+
+	searchTerm := cmd.args[0]
+
+	posts, err := s.db.SearchPostsForUser(context.Background(), database.SearchPostsForUserParams{
+		UserID:      user.ID,
+		Term:        sql.NullString{String: searchTerm, Valid: true},
+		LimitCount:  20,
+		OffsetCount: 0,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't search posts for user: %w", err)
+	}
+
+	printPosts(posts, user.Name, 1, 20, "search results", searchTerm)
+	return nil
+}
+
 func printPosts[T any](posts []T, userName string, page int, limit int, sort string, filter string) {
 	if len(posts) == 0 {
 		fmt.Printf("%sNo posts found for %s on page %d.%s\n", colorYellow, userName, page, colorReset)
@@ -391,6 +412,8 @@ func printPosts[T any](posts []T, userName string, page int, limit int, sort str
 		case database.GetPostsForUserOldestWithPaginationRow:
 			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		case database.GetPostsForUserFilterByTitleRow:
+			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+		case database.SearchPostsForUserRow:
 			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		}
 	}
