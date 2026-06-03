@@ -34,7 +34,7 @@ func handlerLogin(s *state, cmd command) error {
 	// login requires the user to exist in the DB
 	_, err := s.db.GetUser(context.Background(), username)
 	if errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("user **%s** %sdoes not exist%s", username, colorRed, colorReset)
+		return fmt.Errorf("%suser %s%q%s%s does not exist%s", colorRed, colorBold, username, colorRed, colorReset, colorReset)
 	}
 	if err != nil {
 		return fmt.Errorf("error looking up user: %v", err)
@@ -57,7 +57,7 @@ func handlerRegister(s *state, cmd command) error {
 	_, err := s.db.GetUser(context.Background(), username)
 	if err == nil {
 		// no error = user found = already exists
-		return fmt.Errorf("user **%s** %salready exists%s", username, colorRed, colorReset)
+		return fmt.Errorf("%suser %s%q%s%s already exists%s", colorRed, colorBold, username, colorRed, colorReset, colorReset)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		// real DB error
