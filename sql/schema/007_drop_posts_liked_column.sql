@@ -1,0 +1,5 @@
+-- +goose Up
+ALTER TABLE posts DROP COLUMN IF EXISTS liked;
+
+-- +goose Down
+ALTER TABLE posts ADD COLUMN liked BOOLEAN NOT NULL DEFAULT FALSE;
