@@ -1,4 +1,4 @@
-package main
+package rss
 
 import (
 	"context"
@@ -8,18 +8,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/danielmiranda22/gator/internal/cli"
 	"github.com/danielmiranda22/gator/internal/database"
-	"github.com/danielmiranda22/gator/internal/rss"
+	"github.com/danielmiranda22/gator/internal/service"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
-func scrapeFeed(s *state, feed database.Feed) error {
-	if err := s.db.MarkFeedFetched(context.Background(), feed.ID); err != nil {
+func scrapeFeed(s *cli.State, feed database.Feed) error {
+	if err := s.DB.MarkFeedFetched(context.Background(), feed.ID); err != nil {
 		return fmt.Errorf("error marking feed as fetched: %w", err)
 	}
 
-	feedData, err := rss.FetchFeed(context.Background(), feed.Url)
+	feedData, err := service.FetchFeed(context.Background(), feed.Url)
 	if err != nil {
 		return fmt.Errorf("error fetching feed: %w", err)
 	}
@@ -30,7 +31,7 @@ func scrapeFeed(s *state, feed database.Feed) error {
 			publishedAt = sql.NullTime{Time: t, Valid: true}
 		}
 
-		_, err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+		_, err = s.DB.CreatePost(context.Background(), database.CreatePostParams{
 			ID:          uuid.New(),
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
@@ -52,7 +53,7 @@ func scrapeFeed(s *state, feed database.Feed) error {
 	return nil
 }
 
-func scrapeFeedsConcurrently(s *state, feeds []database.Feed, workerCount int) {
+func ScrapeFeedsConcurrently(s *cli.State, feeds []database.Feed, workerCount int) {
 	jobs := make(chan database.Feed)
 	var wg sync.WaitGroup
 
