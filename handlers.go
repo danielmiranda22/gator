@@ -292,6 +292,10 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 		return ui.RunTUI(tuiPosts)
 	}
 
+	if len(cmd.args) > 0 && cmd.args[0] == "liked" {
+		return handlerLiked(s, cmd, user)
+	}
+	
 	limit := 2
 	sort := "newest"
 	titleFilter := ""
