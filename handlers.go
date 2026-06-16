@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/danielmiranda22/gator/internal/database"
+	"github.com/danielmiranda22/gator/ui"
 	"github.com/google/uuid"
 )
 
@@ -261,6 +262,36 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 }
 
 func handlerBrowse(s *state, cmd command, user database.User) error {
+	if len(cmd.args) > 0 && cmd.args[0] == "tui" {
+		posts, err := s.db.GetPostsForUserWithPagination(context.Background(), database.GetPostsForUserWithPaginationParams{
+			UserID: user.ID,
+			Limit:  20,
+			Offset: 0,
+		})
+		if err != nil {
+			return fmt.Errorf("couldn't get posts for TUI: %w", err)
+		}
+
+		tuiPosts := make([]ui.TUIPost, 0, len(posts))
+		for _, p := range posts {
+			tuiPosts = append(tuiPosts, ui.TUIPost{
+				ID:          p.ID,
+				Title:       p.Title,
+				FeedName:    p.FeedName,
+				URL:         p.Url,
+				Description: p.Description.String,
+				PublishedAt: p.PublishedAt.Time,
+			})
+		}
+
+		if len(tuiPosts) == 0 {
+			fmt.Println("No posts available for TUI.")
+			return nil
+		}
+
+		return ui.RunTUI(tuiPosts)
+	}
+
 	limit := 2
 	sort := "newest"
 	titleFilter := ""
