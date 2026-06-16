@@ -293,9 +293,12 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 	}
 
 	if len(cmd.args) > 0 && cmd.args[0] == "liked" {
-		return handlerLiked(s, cmd, user)
+		if len(cmd.args) > 1 && cmd.args[1] == "tui" {
+			return handlerLikedTUI(s, user)
+		}
+		return handlerLiked(s, user)
 	}
-	
+
 	limit := 2
 	sort := "newest"
 	titleFilter := ""
@@ -423,7 +426,7 @@ func handlerLike(s *state, cmd command, user database.User) error {
 	if err == nil {
 		return fmt.Errorf("you already liked this post")
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("couldn't check existing like: %w", err)
 	}
 
@@ -480,7 +483,7 @@ func handlerUnlike(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func handlerLiked(s *state, cmd command, user database.User) error {
+func handlerLiked(s *state, user database.User) error {
 	posts, err := s.db.GetLikedPostsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't get liked posts: %w", err)
@@ -488,6 +491,32 @@ func handlerLiked(s *state, cmd command, user database.User) error {
 
 	printPosts(posts, user.Name, 1, len(posts), "liked", "liked posts")
 	return nil
+}
+
+func handlerLikedTUI(s *state, user database.User) error {
+	posts, err := s.db.GetLikedPostsForUser(context.Background(), user.ID)
+	if err != nil {
+		return fmt.Errorf("couldn't get posts for TUI: %w", err)
+	}
+
+	tuiPosts := make([]ui.TUIPost, 0, len(posts))
+	for _, p := range posts {
+		tuiPosts = append(tuiPosts, ui.TUIPost{
+			ID:          p.ID,
+			Title:       p.Title,
+			FeedName:    p.FeedName,
+			URL:         p.Url,
+			Description: p.Description.String,
+			PublishedAt: p.PublishedAt.Time,
+		})
+	}
+
+	if len(tuiPosts) == 0 {
+		fmt.Println("No posts available for TUI.")
+		return nil
+	}
+
+	return ui.RunTUI(tuiPosts)
 }
 
 func handlerSearch(s *state, cmd command, user database.User) error {
