@@ -14,9 +14,29 @@ import (
 )
 
 const createPost = `-- name: CreatePost :one
-INSERT INTO posts (id, created_at, updated_at, title, url, description, published_at, feed_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, created_at, updated_at, title, url, description, published_at, feed_id
+INSERT INTO
+    posts (
+        id,
+        created_at,
+        updated_at,
+        title,
+        url,
+        description,
+        published_at,
+        feed_id
+    )
+VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8
+    )
+RETURNING
+    id, created_at, updated_at, title, url, description, published_at, feed_id
 `
 
 type CreatePostParams struct {
@@ -55,12 +75,52 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 	return i, err
 }
 
+const getPostByID = `-- name: GetPostByID :one
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
+FROM posts
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    posts.id = $1
+`
+
+type GetPostByIDRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostByID(ctx context.Context, id uuid.UUID) (GetPostByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getPostByID, id)
+	var i GetPostByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Title,
+		&i.Url,
+		&i.Description,
+		&i.PublishedAt,
+		&i.FeedID,
+		&i.FeedName,
+	)
+	return i, err
+}
+
 const getPostsForUser = `-- name: GetPostsForUser :many
 
-SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
-JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
-JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1 
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
+FROM
+    posts
+    JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    feed_follows.user_id = $1
 ORDER BY posts.published_at DESC
 LIMIT $2
 `
@@ -117,12 +177,17 @@ func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams
 
 const getPostsForUserFilterByTitle = `-- name: GetPostsForUserFilterByTitle :many
 
-
-SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
-JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
-JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1 
-  AND (posts.title = $2 OR posts.description = $2)
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
+FROM
+    posts
+    JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    feed_follows.user_id = $1
+    AND (
+        posts.title = $2
+        OR posts.description = $2
+    )
 ORDER BY posts.published_at DESC
 LIMIT $3
 `
@@ -180,10 +245,13 @@ func (q *Queries) GetPostsForUserFilterByTitle(ctx context.Context, arg GetPosts
 
 const getPostsForUserOldest = `-- name: GetPostsForUserOldest :many
 
-SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
-JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
-JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
+FROM
+    posts
+    JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    feed_follows.user_id = $1
 ORDER BY posts.published_at ASC
 LIMIT $2
 `
@@ -240,13 +308,17 @@ func (q *Queries) GetPostsForUserOldest(ctx context.Context, arg GetPostsForUser
 
 const getPostsForUserOldestWithPagination = `-- name: GetPostsForUserOldestWithPagination :many
 
-
-SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
-JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
-JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
+FROM
+    posts
+    JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    feed_follows.user_id = $1
 ORDER BY posts.published_at ASC
-LIMIT $2 OFFSET $3
+LIMIT $2
+OFFSET
+    $3
 `
 
 type GetPostsForUserOldestWithPaginationParams struct {
@@ -302,13 +374,17 @@ func (q *Queries) GetPostsForUserOldestWithPagination(ctx context.Context, arg G
 
 const getPostsForUserWithPagination = `-- name: GetPostsForUserWithPagination :many
 
-
-SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name FROM posts
-JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
-JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
+FROM
+    posts
+    JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    feed_follows.user_id = $1
 ORDER BY posts.published_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $2
+OFFSET
+    $3
 `
 
 type GetPostsForUserWithPaginationParams struct {
@@ -364,19 +440,21 @@ func (q *Queries) GetPostsForUserWithPagination(ctx context.Context, arg GetPost
 
 const searchPostsForUser = `-- name: SearchPostsForUser :many
 
-
 SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name AS feed_name
-FROM posts
-JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
-JOIN feeds ON posts.feed_id = feeds.id
-WHERE feed_follows.user_id = $1
-  AND (
-    posts.title ILIKE '%' || $2 || '%'
-    OR posts.description ILIKE '%' || $2 || '%'
-  )
+FROM
+    posts
+    JOIN feed_follows ON feed_follows.feed_id = posts.feed_id
+    JOIN feeds ON posts.feed_id = feeds.id
+WHERE
+    feed_follows.user_id = $1
+    AND (
+        posts.title ILIKE '%' || $2 || '%'
+        OR posts.description ILIKE '%' || $2 || '%'
+    )
 ORDER BY posts.published_at DESC
 LIMIT $4
-OFFSET $3
+OFFSET
+    $3
 `
 
 type SearchPostsForUserParams struct {

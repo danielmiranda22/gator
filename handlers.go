@@ -366,6 +366,95 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 	}
 }
 
+func handlerLike(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("usage: like <post_id>")
+	}
+
+	postUUID, err := uuid.Parse(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("invalid post ID: %v", err)
+	}
+
+	post, err := s.db.GetPostByID(context.Background(), postUUID)
+	if err != nil {
+		return fmt.Errorf("couldn't get post by ID: %w", err)
+	}
+
+	_, err = s.db.GetPostLikeByPostAndUser(context.Background(), database.GetPostLikeByPostAndUserParams{
+		PostID: post.ID,
+		UserID: user.ID,
+	})
+	if err == nil {
+		return fmt.Errorf("you already liked this post")
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("couldn't check existing like: %w", err)
+	}
+
+	_, err = s.db.CreatePostLike(context.Background(), database.CreatePostLikeParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		PostID:    post.ID,
+		UserID:    user.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't like post: %w", err)
+	}
+
+	fmt.Printf("Liked post: %s\n", post.Title)
+	return nil
+}
+
+func handlerUnlike(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("usage: unlike <post_id>")
+	}
+
+	postUUID, err := uuid.Parse(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("invalid post ID: %v", err)
+	}
+
+	post, err := s.db.GetPostByID(context.Background(), postUUID)
+	if err != nil {
+		return fmt.Errorf("couldn't get post by ID: %w", err)
+	}
+
+	_, err = s.db.GetPostLikeByPostAndUser(context.Background(), database.GetPostLikeByPostAndUserParams{
+		PostID: post.ID,
+		UserID: user.ID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("you have not liked this post")
+		}
+		return fmt.Errorf("couldn't check existing like: %w", err)
+	}
+
+	err = s.db.DeletePostLike(context.Background(), database.DeletePostLikeParams{
+		PostID: post.ID,
+		UserID: user.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't unlike post: %w", err)
+	}
+
+	fmt.Printf("Unliked post: %s\n", post.Title)
+	return nil
+}
+
+func handlerLiked(s *state, cmd command, user database.User) error {
+	posts, err := s.db.GetLikedPostsForUser(context.Background(), user.ID)
+	if err != nil {
+		return fmt.Errorf("couldn't get liked posts: %w", err)
+	}
+
+	printPosts(posts, user.Name, 1, len(posts), "liked", "liked posts")
+	return nil
+}
+
 func handlerSearch(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("usage: search <search_term>")
@@ -408,13 +497,17 @@ func printPosts[T any](posts []T, userName string, page int, limit int, sort str
 		// just copy your previous print loop for each branch if needed.
 		switch p := any(post).(type) {
 		case database.GetPostsForUserWithPaginationRow:
-			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+			renderPost(p.ID, p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		case database.GetPostsForUserOldestWithPaginationRow:
-			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+			renderPost(p.ID, p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		case database.GetPostsForUserFilterByTitleRow:
-			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+			renderPost(p.ID, p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
 		case database.SearchPostsForUserRow:
-			renderPost(p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+			renderPost(p.ID, p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+		case database.GetLikedPostsForUserRow:
+			renderPost(p.ID, p.Title, p.FeedName, p.Url, p.Description.String, p.PublishedAt.Time)
+		default:
+			fmt.Printf("%sUnknown post type: %T%s\n", colorRed, post, colorReset)
 		}
 	}
 }
@@ -426,7 +519,7 @@ func truncate(text string, max int) string {
 	return text[:max-3] + "..."
 }
 
-func renderPost(title, feedName, url, description string, publishedAt time.Time) {
+func renderPost(id uuid.UUID, title, feedName, url, description string, publishedAt time.Time) {
 	fmt.Printf("%s📅 %s%s  %s%s\n",
 		colorBlue,
 		publishedAt.Format("02 Jan 2006"),
@@ -436,6 +529,8 @@ func renderPost(title, feedName, url, description string, publishedAt time.Time)
 	)
 
 	fmt.Printf("%s%s%s\n", colorBold, title, colorReset)
+
+	fmt.Printf("    %sID: %s%s\n", colorMagenta, id, colorReset)
 
 	if description != "" {
 		fmt.Printf("    %s%s%s\n", colorGray, truncate(description, 140), colorReset)
