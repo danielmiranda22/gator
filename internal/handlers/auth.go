@@ -58,10 +58,8 @@ func Register(s *cli.State, cmd cli.Command) error {
 		return err
 	}
 
-	fmt.Printf(
-		"User created successfully: %+v\n",
-		user,
-	)
+	fmt.Printf("%sUser created successfully%s\n", ui.ColorGreen, ui.ColorReset)
+	fmt.Printf("%s%sLogged in as %s%s\n", ui.ColorGreen, ui.ColorBold, user.Name, ui.ColorReset)
 
 	return nil
 }
@@ -70,7 +68,7 @@ func Reset(s *cli.State, cmd cli.Command) error {
 	if err := s.Services.Users.Reset(s.Ctx); err != nil {
 		return err
 	}
-	fmt.Println("Users reset successfully")
+	fmt.Printf("%sUsers reset successfully%s\n", ui.ColorGreen, ui.ColorReset)
 	return nil
 }
 
@@ -80,6 +78,11 @@ func ListUsers(s *cli.State, cmd cli.Command) error {
 	)
 	if err != nil {
 		return fmt.Errorf("error getting all users: %v", err)
+	}
+
+	if len(users) == 0 {
+		fmt.Printf("%sNo users found.%s\n", ui.ColorRed, ui.ColorReset)
+		return nil
 	}
 
 	for _, user := range users {

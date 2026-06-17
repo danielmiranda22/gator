@@ -19,6 +19,7 @@ func scrapeFeed(s *cli.State, feed database.Feed) error {
 	if err := s.DB.MarkFeedFetched(context.Background(), feed.ID); err != nil {
 		return fmt.Errorf("error marking feed as fetched: %w", err)
 	}
+	log.Printf("fetching feed %s (%s)", feed.Name, feed.Url)
 
 	feedData, err := service.FetchFeed(context.Background(), feed.Url)
 	if err != nil {

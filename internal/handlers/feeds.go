@@ -9,10 +9,8 @@ import (
 	"github.com/danielmiranda22/gator/internal/cli"
 	"github.com/danielmiranda22/gator/internal/database"
 	"github.com/danielmiranda22/gator/internal/rss"
-	"github.com/google/uuid"
 )
 
-// add to handlers.go — agg handler
 func Agg(s *cli.State, cmd cli.Command) error {
 	if len(cmd.Args) < 1 || len(cmd.Args) > 2 {
 		return fmt.Errorf("usage: %v <time_between_reqs> [worker_count]", cmd.Name)
@@ -38,7 +36,7 @@ func Agg(s *cli.State, cmd cli.Command) error {
 	defer ticker.Stop()
 
 	for ; ; <-ticker.C {
-		feeds, err := s.DB.GetNextFeedsToFetch(s.Ctx, int32(workerCount))
+		feeds, err := s.Services.Feeds.GetNextFeedsToFetch(s.Ctx, int32(workerCount))
 		if err != nil {
 			log.Printf("error getting next feeds to fetch: %v", err)
 			continue
@@ -57,38 +55,28 @@ func AddFeed(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) < 2 {
 		return fmt.Errorf("usage: addfeed <name> <url>")
 	}
-	newFeed, err := s.DB.CreateFeed(s.Ctx, database.CreateFeedParams{
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Name:      cmd.Args[0],
-		Url:       cmd.Args[1],
-		UserID:    user.ID, // from parameter, not state ✅
-	})
+
+	// create the feed
+	newFeed, err := s.Services.Feeds.Add(s.Ctx, cmd.Args[0], cmd.Args[1], user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't create feed: %w", err)
 	}
+	fmt.Printf("Feed created successfully: %+v\n", newFeed)
 
-	fmt.Printf("* Name: %s\n* URL: %s\n", newFeed.Name, newFeed.Url)
-
-	follow, err := s.DB.CreateFeedFollow(s.Ctx, database.CreateFeedFollowParams{
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		FeedID:    newFeed.ID,
-		UserID:    user.ID, // from parameter ✅
-	})
+	// auto-follow the feed after creating it
+	follow, err := s.Services.Feeds.Follow(s.Ctx, newFeed.ID, user.ID)
 	if err != nil {
 		return fmt.Errorf("error auto-following feed: %v", err)
 	}
 	fmt.Printf("Now following: %s\n", follow.FeedName)
+
 	return nil
 }
 
 func ListFeeds(s *cli.State, cmd cli.Command) error {
-	feeds, err := s.DB.GetAllFeeds(s.Ctx)
+	feeds, err := s.Services.Feeds.List(s.Ctx)
 	if err != nil {
-		return fmt.Errorf("error getting feeds for user: %v", err)
+		return err
 	}
 
 	for _, feed := range feeds {
@@ -105,43 +93,42 @@ func ListFeeds(s *cli.State, cmd cli.Command) error {
 	return nil
 }
 
-// add these three handlers
 func Follow(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: follow <feed_url>")
 	}
-	feed, err := s.DB.GetFeedByURL(s.Ctx, cmd.Args[0])
+
+	feed, err := s.Services.Feeds.GetFeedByURL(s.Ctx, cmd.Args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
-	follow, err := s.DB.CreateFeedFollow(s.Ctx, database.CreateFeedFollowParams{
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		FeedID:    feed.ID,
-		UserID:    user.ID, // from parameter ✅
-	})
+
+	follow, err := s.Services.Feeds.Follow(s.Ctx, feed.ID, user.ID)
 	if err != nil {
 		return fmt.Errorf("error following feed: %v", err)
 	}
 	fmt.Printf("Following feed: %s\n", follow.FeedName)
 	fmt.Printf("User: %s\n", follow.UserName)
+
 	return nil
 }
 
 func Following(s *cli.State, cmd cli.Command, user database.User) error {
-	follows, err := s.DB.GetFeedFollowsForUser(s.Ctx, user.ID) // from parameter ✅
+	follows, err := s.Services.Feeds.GetFeedFollowsForUser(s.Ctx, user.ID) // from parameter ✅
 	if err != nil {
 		return fmt.Errorf("error getting feed follows: %v", err)
 	}
+
 	if len(follows) == 0 {
 		fmt.Println("You are not following any feeds")
 		return nil
 	}
+
 	fmt.Println("Feeds you follow:")
 	for _, follow := range follows {
 		fmt.Printf("  * %s\n", follow.FeedName)
 	}
+
 	return nil
 }
 
@@ -149,17 +136,18 @@ func Unfollow(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: unfollow <feed_url>")
 	}
-	feed, err := s.DB.GetFeedByURL(s.Ctx, cmd.Args[0])
+
+	feed, err := s.Services.Feeds.GetFeedByURL(s.Ctx, cmd.Args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
-	err = s.DB.DeleteFeedFollow(s.Ctx, database.DeleteFeedFollowParams{
-		UserID: user.ID,
-		FeedID: feed.ID,
-	})
+
+	err = s.Services.Feeds.Unfollow(s.Ctx, feed.ID, user.ID) // from parameter ✅
 	if err != nil {
 		return fmt.Errorf("error unfollowing feed: %v", err)
 	}
+
 	fmt.Printf("Unfollowed: %s\n", feed.Name)
+
 	return nil
 }
