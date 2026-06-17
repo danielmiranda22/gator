@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -39,7 +38,7 @@ func Agg(s *cli.State, cmd cli.Command) error {
 	defer ticker.Stop()
 
 	for ; ; <-ticker.C {
-		feeds, err := s.DB.GetNextFeedsToFetch(context.Background(), int32(workerCount))
+		feeds, err := s.DB.GetNextFeedsToFetch(s.Ctx, int32(workerCount))
 		if err != nil {
 			log.Printf("error getting next feeds to fetch: %v", err)
 			continue
@@ -58,7 +57,7 @@ func AddFeed(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) < 2 {
 		return fmt.Errorf("usage: addfeed <name> <url>")
 	}
-	newFeed, err := s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
+	newFeed, err := s.DB.CreateFeed(s.Ctx, database.CreateFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -72,7 +71,7 @@ func AddFeed(s *cli.State, cmd cli.Command, user database.User) error {
 
 	fmt.Printf("* Name: %s\n* URL: %s\n", newFeed.Name, newFeed.Url)
 
-	follow, err := s.DB.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+	follow, err := s.DB.CreateFeedFollow(s.Ctx, database.CreateFeedFollowParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -87,7 +86,7 @@ func AddFeed(s *cli.State, cmd cli.Command, user database.User) error {
 }
 
 func ListFeeds(s *cli.State, cmd cli.Command) error {
-	feeds, err := s.DB.GetAllFeeds(context.Background())
+	feeds, err := s.DB.GetAllFeeds(s.Ctx)
 	if err != nil {
 		return fmt.Errorf("error getting feeds for user: %v", err)
 	}
@@ -111,11 +110,11 @@ func Follow(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: follow <feed_url>")
 	}
-	feed, err := s.DB.GetFeedByURL(context.Background(), cmd.Args[0])
+	feed, err := s.DB.GetFeedByURL(s.Ctx, cmd.Args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
-	follow, err := s.DB.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+	follow, err := s.DB.CreateFeedFollow(s.Ctx, database.CreateFeedFollowParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -131,7 +130,7 @@ func Follow(s *cli.State, cmd cli.Command, user database.User) error {
 }
 
 func Following(s *cli.State, cmd cli.Command, user database.User) error {
-	follows, err := s.DB.GetFeedFollowsForUser(context.Background(), user.ID) // from parameter ✅
+	follows, err := s.DB.GetFeedFollowsForUser(s.Ctx, user.ID) // from parameter ✅
 	if err != nil {
 		return fmt.Errorf("error getting feed follows: %v", err)
 	}
@@ -150,11 +149,11 @@ func Unfollow(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: unfollow <feed_url>")
 	}
-	feed, err := s.DB.GetFeedByURL(context.Background(), cmd.Args[0])
+	feed, err := s.DB.GetFeedByURL(s.Ctx, cmd.Args[0])
 	if err != nil {
 		return fmt.Errorf("feed not found: %v", err)
 	}
-	err = s.DB.DeleteFeedFollow(context.Background(), database.DeleteFeedFollowParams{
+	err = s.DB.DeleteFeedFollow(s.Ctx, database.DeleteFeedFollowParams{
 		UserID: user.ID,
 		FeedID: feed.ID,
 	})
