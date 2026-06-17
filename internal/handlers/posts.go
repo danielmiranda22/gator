@@ -167,12 +167,12 @@ func Like(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("invalid post ID: %v", err)
 	}
 
-	post, err := s.DB.GetPostByID(context.Background(), postUUID)
+	post, err := s.DB.GetPostByID(s.Ctx, postUUID)
 	if err != nil {
 		return fmt.Errorf("couldn't get post by ID: %w", err)
 	}
 
-	_, err = s.DB.GetPostLikeByPostAndUser(context.Background(), database.GetPostLikeByPostAndUserParams{
+	_, err = s.DB.GetPostLikeByPostAndUser(s.Ctx, database.GetPostLikeByPostAndUserParams{
 		PostID: post.ID,
 		UserID: user.ID,
 	})
@@ -183,7 +183,7 @@ func Like(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("couldn't check existing like: %w", err)
 	}
 
-	_, err = s.DB.CreatePostLike(context.Background(), database.CreatePostLikeParams{
+	_, err = s.DB.CreatePostLike(s.Ctx, database.CreatePostLikeParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -208,12 +208,12 @@ func Unlike(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("invalid post ID: %v", err)
 	}
 
-	post, err := s.DB.GetPostByID(context.Background(), postUUID)
+	post, err := s.DB.GetPostByID(s.Ctx, postUUID)
 	if err != nil {
 		return fmt.Errorf("couldn't get post by ID: %w", err)
 	}
 
-	_, err = s.DB.GetPostLikeByPostAndUser(context.Background(), database.GetPostLikeByPostAndUserParams{
+	_, err = s.DB.GetPostLikeByPostAndUser(s.Ctx, database.GetPostLikeByPostAndUserParams{
 		PostID: post.ID,
 		UserID: user.ID,
 	})
@@ -237,7 +237,7 @@ func Unlike(s *cli.State, cmd cli.Command, user database.User) error {
 }
 
 func Liked(s *cli.State, user database.User) error {
-	posts, err := s.DB.GetLikedPostsForUser(context.Background(), user.ID)
+	posts, err := s.DB.GetLikedPostsForUser(s.Ctx, user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't get liked posts: %w", err)
 	}
@@ -247,7 +247,7 @@ func Liked(s *cli.State, user database.User) error {
 }
 
 func LikedTUI(s *cli.State, user database.User) error {
-	posts, err := s.DB.GetLikedPostsForUser(context.Background(), user.ID)
+	posts, err := s.DB.GetLikedPostsForUser(s.Ctx, user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't get posts for TUI: %w", err)
 	}
@@ -279,7 +279,7 @@ func Search(s *cli.State, cmd cli.Command, user database.User) error {
 
 	searchTerm := cmd.Args[0]
 
-	posts, err := s.DB.SearchPostsForUser(context.Background(), database.SearchPostsForUserParams{
+	posts, err := s.DB.SearchPostsForUser(s.Ctx, database.SearchPostsForUserParams{
 		UserID:      user.ID,
 		Term:        sql.NullString{String: searchTerm, Valid: true},
 		LimitCount:  20,
