@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"os"
@@ -25,8 +26,9 @@ func main() {
 	defer db.Close()
 
 	programState := &cli.State{
-		Cfg: &cfg,
 		DB:  database.New(db),
+		Cfg: &cfg,
+		Ctx: context.Background(),
 	}
 
 	cmds := cli.Commands{}

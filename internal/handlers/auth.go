@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -20,7 +19,7 @@ func Login(s *cli.State, cmd cli.Command) error {
 	username := cmd.Args[0]
 
 	// login requires the user to exist in the DB
-	_, err := s.DB.GetUser(context.Background(), username)
+	_, err := s.DB.GetUser(s.Ctx, username)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("%suser %s%q%s%s does not exist%s", ui.ColorRed, ui.ColorBold, username, ui.ColorRed, ui.ColorReset, ui.ColorReset)
 	}
@@ -42,7 +41,7 @@ func Register(s *cli.State, cmd cli.Command) error {
 	username := cmd.Args[0]
 
 	// check if user already exists
-	_, err := s.DB.GetUser(context.Background(), username)
+	_, err := s.DB.GetUser(s.Ctx, username)
 	if err == nil {
 		// no error = user found = already exists
 		return fmt.Errorf("%suser %s%q%s%s already exists%s", ui.ColorRed, ui.ColorBold, username, ui.ColorRed, ui.ColorReset, ui.ColorReset)
@@ -53,7 +52,7 @@ func Register(s *cli.State, cmd cli.Command) error {
 	}
 
 	// create the user
-	newUser, err := s.DB.CreateUser(context.Background(), database.CreateUserParams{
+	newUser, err := s.DB.CreateUser(s.Ctx, database.CreateUserParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -73,7 +72,7 @@ func Register(s *cli.State, cmd cli.Command) error {
 }
 
 func Reset(s *cli.State, cmd cli.Command) error {
-	if err := s.DB.DeleteAllUsers(context.Background()); err != nil {
+	if err := s.DB.DeleteAllUsers(s.Ctx); err != nil {
 		return err
 	}
 	fmt.Println("Users reset successfully")
@@ -81,7 +80,7 @@ func Reset(s *cli.State, cmd cli.Command) error {
 }
 
 func ListUsers(s *cli.State, cmd cli.Command) error {
-	users, err := s.DB.GetAllUsers(context.Background())
+	users, err := s.DB.GetAllUsers(s.Ctx)
 	if err != nil {
 		return fmt.Errorf("error getting all users: %v", err)
 	}
