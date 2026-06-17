@@ -1,7 +1,11 @@
 package commands
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/danielmiranda22/gator/internal/cli"
+	"github.com/danielmiranda22/gator/internal/database"
 	"github.com/danielmiranda22/gator/internal/handlers"
 )
 
@@ -26,4 +30,22 @@ func RegisterCommands(cmds *cli.Commands) {
 
 	cmds.Register("like", middlewareLoggedIn(handlers.Like))
 	cmds.Register("unlike", middlewareLoggedIn(handlers.Unlike))
+}
+
+func middlewareLoggedIn(
+	handler func(*cli.State, cli.Command, database.User) error,
+) func(*cli.State, cli.Command) error {
+
+	return func(s *cli.State, cmd cli.Command) error {
+		user, err := s.DB.GetUser(
+			context.Background(),
+			s.Cfg.CurrentUserName,
+		)
+
+		if err != nil {
+			return fmt.Errorf("not logged in: %w", err)
+		}
+
+		return handler(s, cmd, user)
+	}
 }
