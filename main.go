@@ -31,6 +31,7 @@ func main() {
 	services := &service.Services{
 		Users: service.NewUserService(queries),
 		Feeds: service.NewFeedService(queries),
+		Posts: service.NewPostService(queries),
 	}
 
 	programState := &cli.State{
