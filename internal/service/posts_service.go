@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielmiranda22/gator/internal/database"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type PostService struct {
@@ -105,6 +106,36 @@ func (s *PostService) GetPostLikeByPostAndUser(
 	}
 
 	return postLike, nil
+}
+
+func (s *PostService) CreatePost(
+	ctx context.Context,
+	feedId uuid.UUID,
+	rssTitle string,
+	rssDescription string,
+	rssLink string,
+	publishedAt sql.NullTime,
+) (database.Post, error) {
+
+	post, err := s.db.CreatePost(ctx, database.CreatePostParams{
+		ID:          uuid.New(),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+		FeedID:      feedId,
+		Title:       rssTitle,
+		Description: sql.NullString{String: rssDescription, Valid: true},
+		Url:         rssLink,
+		PublishedAt: publishedAt,
+	})
+
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" { // unique_violation error code in PostgreSQL meaning the post already exists
+			return database.Post{}, nil
+		}
+		return database.Post{}, err
+	}
+
+	return post, nil
 }
 
 func (s *PostService) CreatePostLike(

@@ -134,3 +134,15 @@ func (s *FeedService) Unfollow(
 	}
 	return nil
 }
+
+func (s *FeedService) MarkFeedFetched(
+	ctx context.Context,
+	feedID uuid.UUID,
+) error {
+
+	err := s.db.MarkFeedFetched(ctx, feedID)
+	if err != nil {
+		return fmt.Errorf("error marking feed as fetched: %v", err)
+	}
+	return nil
+}

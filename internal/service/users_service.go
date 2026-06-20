@@ -31,7 +31,14 @@ func (s *UserService) Register(
 
 	if err == nil {
 		// no error = user found = already exists
-		return database.User{}, fmt.Errorf("%suser %s%q%s%s already exists%s", ui.ColorRed, ui.ColorBold, username, ui.ColorRed, ui.ColorReset, ui.ColorReset)
+		return database.User{}, fmt.Errorf(
+			"%suser %s%q%s%s already exists%s",
+			ui.ColorRed,
+			ui.ColorBold,
+			username,
+			ui.ColorRed,
+			ui.ColorReset,
+			ui.ColorReset)
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -60,7 +67,15 @@ func (s *UserService) Login(
 	user, err := s.db.GetUser(ctx, username)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return database.User{}, fmt.Errorf("%suser %s%q%s%s does not exist%s", ui.ColorRed, ui.ColorBold, username, ui.ColorRed, ui.ColorReset, ui.ColorReset)
+		return database.User{}, fmt.Errorf(
+			"%suser %s%q%s%s does not exist%s",
+			ui.ColorRed,
+			ui.ColorBold,
+			username,
+			ui.ColorRed,
+			ui.ColorReset,
+			ui.ColorReset,
+		)
 	}
 
 	if err != nil {
@@ -75,6 +90,14 @@ func (s *UserService) ListUsers(
 ) ([]database.User, error) {
 
 	return s.db.GetAllUsers(ctx)
+}
+
+func (s *UserService) GetUser(
+	ctx context.Context,
+	username string,
+) (database.User, error) {
+
+	return s.db.GetUser(ctx, username)
 }
 
 func (s *UserService) Reset(

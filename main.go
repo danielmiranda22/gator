@@ -35,7 +35,6 @@ func main() {
 	}
 
 	programState := &cli.State{
-		DB:       queries,
 		Cfg:      &cfg,
 		Ctx:      context.Background(),
 		Services: services,
