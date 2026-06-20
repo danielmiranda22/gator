@@ -1,7 +1,6 @@
 package rss
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -11,16 +10,15 @@ import (
 	"github.com/danielmiranda22/gator/internal/cli"
 	"github.com/danielmiranda22/gator/internal/database"
 	"github.com/danielmiranda22/gator/internal/service"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
 func scrapeFeed(s *cli.State, feed database.Feed) error {
-	if err := s.DB.MarkFeedFetched(context.Background(), feed.ID); err != nil {
+	if err := s.Services.Feeds.MarkFeedFetched(s.Ctx, feed.ID); err != nil {
 		return fmt.Errorf("error marking feed as fetched: %w", err)
 	}
+	log.Printf("fetching feed %s (%s)", feed.Name, feed.Url)
 
-	feedData, err := service.FetchFeed(context.Background(), feed.Url)
+	feedData, err := service.FetchFeed(s.Ctx, feed.Url)
 	if err != nil {
 		return fmt.Errorf("error fetching feed: %w", err)
 	}
@@ -31,20 +29,8 @@ func scrapeFeed(s *cli.State, feed database.Feed) error {
 			publishedAt = sql.NullTime{Time: t, Valid: true}
 		}
 
-		_, err = s.DB.CreatePost(context.Background(), database.CreatePostParams{
-			ID:          uuid.New(),
-			CreatedAt:   time.Now().UTC(),
-			UpdatedAt:   time.Now().UTC(),
-			FeedID:      feed.ID,
-			Title:       item.Title,
-			Description: sql.NullString{String: item.Description, Valid: true},
-			Url:         item.Link,
-			PublishedAt: publishedAt,
-		})
+		_, err = s.Services.Posts.CreatePost(s.Ctx, feed.ID, item.Title, item.Description, item.Link, publishedAt)
 		if err != nil {
-			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-				continue
-			}
 			log.Printf("couldn't create post for feed %s: %v", feed.Name, err)
 		}
 	}

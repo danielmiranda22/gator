@@ -1,12 +1,10 @@
 package handlers
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/danielmiranda22/gator/internal/cli"
 	"github.com/danielmiranda22/gator/internal/database"
@@ -16,13 +14,9 @@ import (
 
 func Browse(s *cli.State, cmd cli.Command, user database.User) error {
 	if len(cmd.Args) > 0 && cmd.Args[0] == "tui" {
-		posts, err := s.DB.GetPostsForUserWithPagination(context.Background(), database.GetPostsForUserWithPaginationParams{
-			UserID: user.ID,
-			Limit:  20,
-			Offset: 0,
-		})
+		posts, err := s.Services.Posts.GetPostsForUserWithPagination(s.Ctx, user.ID, 20, 0)
 		if err != nil {
-			return fmt.Errorf("couldn't get posts for TUI: %w", err)
+			return err
 		}
 
 		tuiPosts := make([]ui.TUIPost, 0, len(posts))
@@ -115,40 +109,27 @@ func Browse(s *cli.State, cmd cli.Command, user database.User) error {
 		}
 	}
 
-	ctx := context.Background()
 	offset := (page - 1) * limit
 
 	switch {
 	case titleFilter != "":
-		posts, err := s.DB.GetPostsForUserFilterByTitle(ctx, database.GetPostsForUserFilterByTitleParams{
-			UserID: user.ID,
-			Title:  titleFilter,
-			Limit:  int32(limit),
-		})
+		posts, err := s.Services.Posts.GetPostsForUserFilterByTitle(s.Ctx, user.ID, titleFilter, int32(limit))
 		if err != nil {
-			return fmt.Errorf("couldn't get filtered posts for user: %w", err)
+			return err
 		}
 		ui.PrintPosts(posts, user.Name, page, limit, sort, titleFilter)
 		return nil
 
 	case sort == "oldest":
-		posts, err := s.DB.GetPostsForUserOldestWithPagination(ctx, database.GetPostsForUserOldestWithPaginationParams{
-			UserID: user.ID,
-			Limit:  int32(limit),
-			Offset: int32(offset),
-		})
+		posts, err := s.Services.Posts.GetPostsForUserOldestWithPagination(s.Ctx, user.ID, int32(limit), int32(offset))
 		if err != nil {
-			return fmt.Errorf("couldn't get oldest posts for user: %w", err)
+			return err
 		}
 		ui.PrintPosts(posts, user.Name, page, limit, sort, titleFilter)
 		return nil
 
 	default:
-		posts, err := s.DB.GetPostsForUserWithPagination(ctx, database.GetPostsForUserWithPaginationParams{
-			UserID: user.ID,
-			Limit:  int32(limit),
-			Offset: int32(offset),
-		})
+		posts, err := s.Services.Posts.GetPostsForUserWithPagination(s.Ctx, user.ID, int32(limit), int32(offset))
 		if err != nil {
 			return fmt.Errorf("couldn't get posts for user: %w", err)
 		}
@@ -167,15 +148,12 @@ func Like(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("invalid post ID: %v", err)
 	}
 
-	post, err := s.DB.GetPostByID(s.Ctx, postUUID)
+	post, err := s.Services.Posts.GetPostByID(s.Ctx, postUUID)
 	if err != nil {
 		return fmt.Errorf("couldn't get post by ID: %w", err)
 	}
 
-	_, err = s.DB.GetPostLikeByPostAndUser(s.Ctx, database.GetPostLikeByPostAndUserParams{
-		PostID: post.ID,
-		UserID: user.ID,
-	})
+	_, err = s.Services.Posts.GetPostLikeByPostAndUser(s.Ctx, post.ID, user.ID)
 	if err == nil {
 		return fmt.Errorf("you already liked this post")
 	}
@@ -183,13 +161,7 @@ func Like(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("couldn't check existing like: %w", err)
 	}
 
-	_, err = s.DB.CreatePostLike(s.Ctx, database.CreatePostLikeParams{
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		PostID:    post.ID,
-		UserID:    user.ID,
-	})
+	_, err = s.Services.Posts.CreatePostLike(s.Ctx, post.ID, user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't like post: %w", err)
 	}
@@ -208,15 +180,12 @@ func Unlike(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("invalid post ID: %v", err)
 	}
 
-	post, err := s.DB.GetPostByID(s.Ctx, postUUID)
+	post, err := s.Services.Posts.GetPostByID(s.Ctx, postUUID)
 	if err != nil {
 		return fmt.Errorf("couldn't get post by ID: %w", err)
 	}
 
-	_, err = s.DB.GetPostLikeByPostAndUser(s.Ctx, database.GetPostLikeByPostAndUserParams{
-		PostID: post.ID,
-		UserID: user.ID,
-	})
+	_, err = s.Services.Posts.GetPostLikeByPostAndUser(s.Ctx, post.ID, user.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("you have not liked this post")
@@ -224,10 +193,7 @@ func Unlike(s *cli.State, cmd cli.Command, user database.User) error {
 		return fmt.Errorf("couldn't check existing like: %w", err)
 	}
 
-	err = s.DB.DeletePostLike(context.Background(), database.DeletePostLikeParams{
-		PostID: post.ID,
-		UserID: user.ID,
-	})
+	err = s.Services.Posts.DeletePostLike(s.Ctx, post.ID, user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't unlike post: %w", err)
 	}
@@ -237,7 +203,7 @@ func Unlike(s *cli.State, cmd cli.Command, user database.User) error {
 }
 
 func Liked(s *cli.State, user database.User) error {
-	posts, err := s.DB.GetLikedPostsForUser(s.Ctx, user.ID)
+	posts, err := s.Services.Posts.GetLikedPostsForUser(s.Ctx, user.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't get liked posts: %w", err)
 	}
@@ -247,9 +213,9 @@ func Liked(s *cli.State, user database.User) error {
 }
 
 func LikedTUI(s *cli.State, user database.User) error {
-	posts, err := s.DB.GetLikedPostsForUser(s.Ctx, user.ID)
+	posts, err := s.Services.Posts.GetLikedPostsForUser(s.Ctx, user.ID)
 	if err != nil {
-		return fmt.Errorf("couldn't get posts for TUI: %w", err)
+		return err
 	}
 
 	tuiPosts := make([]ui.TUIPost, 0, len(posts))
@@ -279,12 +245,7 @@ func Search(s *cli.State, cmd cli.Command, user database.User) error {
 
 	searchTerm := cmd.Args[0]
 
-	posts, err := s.DB.SearchPostsForUser(s.Ctx, database.SearchPostsForUserParams{
-		UserID:      user.ID,
-		Term:        sql.NullString{String: searchTerm, Valid: true},
-		LimitCount:  20,
-		OffsetCount: 0,
-	})
+	posts, err := s.Services.Posts.SearchPostsForUser(s.Ctx, user.ID, searchTerm)
 	if err != nil {
 		return fmt.Errorf("couldn't search posts for user: %w", err)
 	}

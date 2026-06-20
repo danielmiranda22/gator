@@ -10,6 +10,7 @@ import (
 	"github.com/danielmiranda22/gator/internal/commands"
 	"github.com/danielmiranda22/gator/internal/config"
 	"github.com/danielmiranda22/gator/internal/database"
+	"github.com/danielmiranda22/gator/internal/service"
 	_ "github.com/lib/pq"
 )
 
@@ -25,10 +26,18 @@ func main() {
 	}
 	defer db.Close()
 
+	queries := database.New(db)
+
+	services := &service.Services{
+		Users: service.NewUserService(queries),
+		Feeds: service.NewFeedService(queries),
+		Posts: service.NewPostService(queries),
+	}
+
 	programState := &cli.State{
-		DB:  database.New(db),
-		Cfg: &cfg,
-		Ctx: context.Background(),
+		Cfg:      &cfg,
+		Ctx:      context.Background(),
+		Services: services,
 	}
 
 	cmds := cli.Commands{}

@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/danielmiranda22/gator/internal/cli"
@@ -37,8 +36,8 @@ func middlewareLoggedIn(
 ) func(*cli.State, cli.Command) error {
 
 	return func(s *cli.State, cmd cli.Command) error {
-		user, err := s.DB.GetUser(
-			context.Background(),
+		user, err := s.Services.Users.GetUser(
+			s.Ctx,
 			s.Cfg.CurrentUserName,
 		)
 
